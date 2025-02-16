@@ -25,6 +25,7 @@
     "otp-generator": "^4.0.1",
     "react-file-image-to-base64": "^1.0.1",
     "server": "file:",
+    "socket.io": "^4.8.1",
     "timeago.js": "^4.0.2"
   }
 }
