@@ -1,16 +1,54 @@
+import bcrypt from 'bcryptjs';
 import { createError } from "../error.js";
 import User from "../models/User.js";
 import Project from "../models/Project.js";
 import Teams from "../models/Teams.js";
 import Notifications from "../models/Notifications.js";
 
+// Create User function
+export const createUser = async (req, res, next) => {
+  const { name, email, password } = req.body;
+
+  // Ensure name, email, and password are provided
+  if (!name || !email || !password) {
+    return res.status(422).send({ message: "Name, email, and password are required." });
+  }
+
+  try {
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).send({ message: "User already exists with this email." });
+    }
+
+    // Hash the password
+    const salt = bcrypt.genSaltSync(10);
+    const hashedPassword = bcrypt.hashSync(password, salt);
+
+    // Create new user
+    const newUser = new User({
+      name,
+      email,  // email is included here
+      password: hashedPassword,
+    });
+
+    // Save the user to the database
+    await newUser.save();
+
+    res.status(201).json({ message: "User created successfully." });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Update User
 export const update = async (req, res, next) => {
   if (req.params.id === req.user.id) {
     try {
       const updatedUser = await User.findByIdAndUpdate(
         req.params.id,
         {
-          $set: req.body,
+          $set: req.body,  // req.body will include the email if it needs to be updated
         },
         { new: true }
       );
@@ -21,8 +59,9 @@ export const update = async (req, res, next) => {
   } else {
     return next(createError(403, "You can update only your account!"));
   }
-}
+};
 
+// Delete User
 export const deleteUser = async (req, res, next) => {
   if (req.params.id === req.user.id) {
     try {
@@ -34,8 +73,9 @@ export const deleteUser = async (req, res, next) => {
   } else {
     return next(createError(403, "You can delete only your account!"));
   }
-}
+};
 
+// Find User by ID
 export const findUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -43,34 +83,34 @@ export const findUser = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-}
+};
 
+// Get User Profile (Authenticated)
 export const getUser = async (req, res, next) => {
-  //if the req.user id is not present then it will give a message of user not authenticated 
-
   try {
-    const user = await User.findById(req.user.id).populate("notifications").populate({
-      path: "teams",
-      populate: {
-        path: "members.id",
-        select: "_id name email",
-      }
-    }).populate("projects").populate("works").populate("tasks");
-    //extract the notification from the user and send it to the client
-    console.log(user)
+    const user = await User.findById(req.user.id)
+      .populate("notifications")
+      .populate({
+        path: "teams",
+        populate: {
+          path: "members.id",
+          select: "_id name email",
+        },
+      })
+      .populate("projects")
+      .populate("works")
+      .populate("tasks");
+
     res.status(200).json(user);
   } catch (err) {
-    console.log(req.user)
     next(err);
   }
-}
+};
 
-// get notifications of the user
-
+// Get Notifications
 export const getNotifications = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-    //extract the notification from the user and send it to the client
     const notifications = user.notifications;
     const notificationArray = [];
     for (let i = 0; i < notifications.length; i++) {
@@ -81,33 +121,30 @@ export const getNotifications = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-}
+};
 
-
-
-//fetch all the works of the user
+// Get Works
 export const getWorks = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).populate(
-      {
-        path: "works",
+    const user = await User.findById(req.user.id).populate({
+      path: "works",
+      populate: {
+        path: "tasks",
         populate: {
-          path: "tasks",
-          populate: {
-            path: "members",
-            select: "name img",
-          },
-        }
-      }).populate({
-        path: "works",
-        populate: {
-          path: "creatorId",
+          path: "members",
           select: "name img",
-        }
-      })
-      .sort({ updatedAt: -1 });;
+        },
+      },
+    }).populate({
+      path: "works",
+      populate: {
+        path: "creatorId",
+        select: "name img",
+      },
+    }).sort({ updatedAt: -1 });
+
     if (!user) return next(createError(404, "User not found!"));
-    //store all the works of the user in an array and send it to the client
+
     const works = [];
     await Promise.all(
       user.works.map(async (work) => {
@@ -121,7 +158,7 @@ export const getWorks = async (req, res, next) => {
   }
 };
 
-//get all the tasks of the user
+// Get Tasks
 export const getTasks = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).populate({
@@ -129,10 +166,11 @@ export const getTasks = async (req, res, next) => {
       populate: {
         path: "members",
         select: "name img",
-      }
+      },
     }).sort({ end_date: 1 });
+
     if (!user) return next(createError(404, "User not found!"));
-    //store all the tasks of the user in an array and send it to the client
+
     const tasks = [];
     await Promise.all(
       user.tasks.map(async (task) => {
@@ -146,8 +184,7 @@ export const getTasks = async (req, res, next) => {
   }
 };
 
-
-
+// Subscribe User
 export const subscribe = async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user.id, {
@@ -156,89 +193,85 @@ export const subscribe = async (req, res, next) => {
     await User.findByIdAndUpdate(req.params.id, {
       $inc: { subscribers: 1 },
     });
-    res.status(200).json("Subscription successfull.")
+    res.status(200).json("Subscription successful.");
   } catch (err) {
     next(err);
   }
-}
+};
 
+// Unsubscribe User
 export const unsubscribe = async (req, res, next) => {
   try {
-    try {
-      await User.findByIdAndUpdate(req.user.id, {
-        $pull: { subscribedUsers: req.params.id },
-      });
-      await User.findByIdAndUpdate(req.params.id, {
-        $inc: { subscribers: -1 },
-      });
-      res.status(200).json("Unsubscription successfull.")
-    } catch (err) {
+    await User.findByIdAndUpdate(req.user.id, {
+      $pull: { subscribedUsers: req.params.id },
+    });
+    await User.findByIdAndUpdate(req.params.id, {
+      $inc: { subscribers: -1 },
+    });
+    res.status(200).json("Unsubscription successful.");
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Get User's Projects
+export const getUserProjects = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).populate("projects");
+    const projects = [];
+    await Promise.all(
+      user.projects.map(async (project) => {
+        await Project.findById(project).populate("members.id", "_id name email img").then((project) => {
+          projects.push(project);
+        }).catch((err) => {
+          next(err);
+        });
+      })
+    ).then(() => {
+      res.status(200).json(projects);
+    }).catch((err) => {
       next(err);
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Get User's Teams
+export const getUserTeams = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).populate("teams");
+    const teams = [];
+    await Promise.all(
+      user.teams.map(async (team) => {
+        await Teams.findById(team.id).then((team) => {
+          teams.push(team);
+        }).catch((err) => {
+          next(err);
+        });
+      })
+    ).then(() => {
+      res.status(200).json(teams);
+    }).catch((err) => {
+      next(err);
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Find User by Email
+export const findUserByEmail = async (req, res, next) => {
+  const email = req.params.email;
+
+  try {
+    const user = await User.findOne({ email: { $regex: email, $options: "i" } }); // Case-insensitive match
+    if (user) {
+      res.status(200).json(user);
+    } else {
+      res.status(404).json({ message: "No user found with this email." });
     }
   } catch (err) {
     next(err);
   }
-}
-
-//find project id from user and get it from projects collection and send it to client
-export const getUserProjects = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id).populate("projects")
-    const projects = []
-    await Promise.all(user.projects.map(async (project) => {
-      await Project.findById(project).populate("members.id", "_id  name email img").then((project) => {
-        projects.push(project)
-      }).catch((err) => {
-        next(err)
-      })
-    })).then(() => {
-      res.status(200).json(projects)
-    }).catch((err) => {
-      next(err)
-    })
-  } catch (err) {
-    next(err);
-  }
-}
-
-//find team id from user and get it from teams collection and send it to client
-export const getUserTeams = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id).populate("teams")
-    const teams = []
-    await Promise.all(user.teams.map(async (team) => {
-      await Teams.findById(team.id).then((team) => {
-        teams.push(team)
-      }).catch((err) => {
-        next(err)
-      })
-    })).then(() => {
-      res.status(200).json(teams)
-    }).catch((err) => {
-      next(err)
-    })
-  } catch (err) {
-    next(err);
-  }
-}
-
-//find user from email and send it to client
-export const findUserByEmail = async (req, res, next) => {
-  const email = req.params.email;
-  const users = [];
-  try {
-    await User.findOne({ email: { $regex: email, $options: "i" } }).then((user) => {
-      if(user!=null)
-      {
-        users.push(user);
-        res.status(200).json(users);
-      }else{
-        res.status(201).json({message:"No user found"});
-      }
-    }).catch((err) => {
-      next(err)
-    })
-  } catch (err) {
-    next(err);
-  }
-}
+};

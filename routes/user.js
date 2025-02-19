@@ -1,49 +1,45 @@
-import express from "express";
-import {
-  update,
-  deleteUser,
-  getUser,
-  subscribe,
-  unsubscribe,
-  getUserProjects,
-  getUserTeams,
-  findUser,
-  findUserByEmail,
-  getNotifications,
-  getWorks,
-  getTasks
-} from "../controllers/user.js";
-import { verifyToken } from "../middleware/verifyToken.js";
+import express from 'express';
+import { createUser, update, deleteUser, findUser, getUser, getNotifications, getWorks, getTasks, subscribe, unsubscribe, getUserProjects, getUserTeams, findUserByEmail } from '../controllers/userController.js';
 
 const router = express.Router();
 
-//update user
-router.put("/:id", verifyToken, update);
+// Create User
+router.post('/users', createUser);
 
-//delete user
-router.delete("/:id", verifyToken, deleteUser);
+// Update User
+router.put('/users/:id', update);
 
-//get a user
-router.get("/find/:id",verifyToken, findUser);
-router.get("/find",verifyToken, getUser);
+// Delete User
+router.delete('/users/:id', deleteUser);
 
-//get user projects
-router.get("/projects", verifyToken, getUserProjects);
+// Find User by ID
+router.get('/users/:id', findUser);
 
-//get user teams
-router.get("/teams", verifyToken, getUserTeams);
+// Get User Profile
+router.get('/users/me', getUser); // Protected route for logged-in user
 
-//search a user
-router.get("/search/:email",verifyToken, findUserByEmail);
+// Get Notifications
+router.get('/users/notifications', getNotifications);
 
-//get notifications of a user
-router.get("/notifications", verifyToken, getNotifications);
+// Get User's Works
+router.get('/users/works', getWorks);
 
-//get works of a user
-router.get("/works", verifyToken, getWorks);
+// Get User's Tasks
+router.get('/users/tasks', getTasks);
 
-//get tasks of a user
-router.get("/tasks", verifyToken, getTasks);
+// Subscribe User
+router.post('/users/subscribe/:id', subscribe);
 
+// Unsubscribe User
+router.post('/users/unsubscribe/:id', unsubscribe);
+
+// Get User's Projects
+router.get('/users/projects', getUserProjects);
+
+// Get User's Teams
+router.get('/users/teams', getUserTeams);
+
+// Find User by Email
+router.get('/users/email/:email', findUserByEmail);
 
 export default router;
